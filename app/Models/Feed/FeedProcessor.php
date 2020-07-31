@@ -31,6 +31,9 @@ class FeedProcessor
         $this->initDB();
     }
 
+    /**
+     * Main func
+     */
     public function loadFeedData()
     {
         $this->feed->getColumnNames();

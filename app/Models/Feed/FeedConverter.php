@@ -63,6 +63,10 @@ class FeedConverter implements FeedConverterInterface
         return $entity;
     }
 
+    /**
+     * If you need to change something in manual mode u can use this callable
+     * @param \Closure $func
+     */
     public function addEntityCallable(\Closure $func)
     {
         $this->postEntityCreationFunc = $func;
