@@ -4,6 +4,8 @@
 namespace App\Models\Feed;
 
 
+use App\Models\Report\CsvOutputReport;
+use App\Models\Report\OutputReportInterface;
 use Illuminate\Support\Facades\DB;
 
 class FeedProcessor
@@ -113,11 +115,64 @@ class FeedProcessor
         // TODO: remove non unique rows after non uniq report
 
         // Report query example (we can use cursor here for memory saving)
-        $deletedClients = DB::select("SELECT clients.* FROM clients
+        $deletedClients = DB::select("SELECT clients.id, clients.first_name FROM clients
             LEFT JOIN t_clients ON clients.id = t_clients.client_id
             WHERE t_clients.client_id IS NULL AND clients.deleted_at IS NULL
         ");
-        // TODO: add reports
+        $this->saveReport(
+            new CsvOutputReport('DeletedReport.csv'),
+            [
+                'client_id',
+                'first_name',
+            ],
+            $deletedClients
+        );
+
+        // Inserted entries report
+        $deletedClients = DB::select("SELECT t_clients.id, t_clients.first_name FROM t_clients
+            LEFT JOIN clients ON clients.id = t_clients.client_id
+            WHERE clients.id IS NULL
+        ");
+        $this->saveReport(
+            new CsvOutputReport('InsertedReport.csv'),
+            [
+                'client_id',
+                'first_name',
+            ],
+            $deletedClients
+        );
+
+        // Updated entries report
+        $deletedClients = DB::select("SELECT clients.id, clients.first_name FROM clients
+            JOIN t_clients ON clients.id = t_clients.client_id
+            WHERE clients.first_name != t_clients.first_name
+               OR clients.last_name != t_clients.last_name
+               OR clients.card_name != t_clients.card_name
+               OR clients.email != t_clients.email
+
+        ");
+        $this->saveReport(
+            new CsvOutputReport('UpdatedReport.csv'),
+            [
+                'client_id',
+                'first_name',
+            ],
+            $deletedClients
+        );
+
+        // Restored entries report
+        $deletedClients = DB::select("SELECT clients.id, clients.first_name FROM clients
+            JOIN t_clients ON clients.id = t_clients.client_id
+            WHERE clients.deleted_at IN NOT NULL
+        ");
+        $this->saveReport(
+            new CsvOutputReport('RestoredReport.csv'),
+            [
+                'client_id',
+                'first_name',
+            ],
+            $deletedClients
+        );
     }
 
     /**
@@ -129,12 +184,24 @@ class FeedProcessor
         DB::insert("INSERT INTO clients (id, first_name)
             SELECT client_id, first_name
             FROM {$this->temporaryTableName}
-            ON DUPLICATE KEY UPDATE first_name=VALUES(first_name)
+            ON DUPLICATE KEY UPDATE
+                first_name=VALUES(first_name),
+                deleted_at = NULL
         ");
         // set deleted_at for deleted clients
         DB::update("UPDATE clients LEFT JOIN t_clients ON clients.id = t_clients.client_id
             SET clients.deleted_at = NOW()
             WHERE clients.deleted_at IS NULL AND t_clients.client_id IS NULL
         ");
+    }
+
+    /**
+     * @param OutputReportInterface $report
+     * @param                       $columns
+     * @param                       $rows
+     */
+    protected function saveReport(OutputReportInterface $report, $columns, $rows)
+    {
+
     }
 }
